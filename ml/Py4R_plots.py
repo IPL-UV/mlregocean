@@ -1,4 +1,4 @@
-__author__ = 'Ana Ruescas'
+__author__ = 'Ana Ruescas, Gonzalo Mateo-García'
 
 """ Plots that can be done with the result of the Py4R ML regression methods:
     1. boxplots of the spectrum for summary of info
@@ -8,16 +8,105 @@ __author__ = 'Ana Ruescas'
     5. boxplots of error by model   
 """
 
-import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import warnings
-import seaborn as sns
 import scipy.stats
 import scipy as sp
-from sklearn.metrics import mean_squared_error ,mean_absolute_error ,r2_score
+from sklearn.metrics import mean_absolute_error
 
+
+def correlative_plot(preds, measured,ax=None,s=10):
+    """
+    Correlative plot
+    Correlative plot prediction vs. measured: as validation plot using linear regression;
+    (also useful for residual vs. measured)
+    Inputs:  and measured (y_test) data
+    Results from models are stored in:
+     predictions = pd.DataFrame(predictions).T
+     predictions.to_csv(name_bands + "_preds.csv", index=False)
+    :param preds: two arrays with predictions (preds)
+    :param measured:
+    :param ax:
+    :param s:
+    :return:
+    """
+
+    slope, intercept, r_value, p_value, std_err = sp.stats.linregress(measured, preds)
+
+    a = str("{0:.5f}".format(slope))
+    b = str("{0:.5f}".format(intercept))
+    c = str("{0:.5f}".format(r_value))
+    d = str("{0:.1E}".format(std_err))
+
+    if ax is None:
+        ax = plt.gca()
+
+    ax.scatter(measured, preds,s=s)
+    ax.set_ylabel( "predicted")
+    ax.set_xlabel( "measured")
+    ax.xaxis.grid(color='lightgrey', linestyle='dashed')
+    ax.yaxis.grid(color='lightgrey', linestyle='dashed')
+    ax.patch.set_facecolor('white')
+    #ax.set_title("Validation", fontsize=25) #example
+    ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c="lightgrey")
+
+    ## Annotate plot with regression formula -->
+    ax.text(0.2, np.max(preds)-1, r'$y=$' + a + r'$x$' + b, ha='left', fontsize=15)
+    ax.text(0.2, np.max(preds)-5, r'$r=$' + c, ha='left', fontsize=15)
+    ax.text(0.2, np.max(preds)-9, r'$error=$' + d, ha='left', fontsize=15)
+
+
+def regression_plot(x_train, x_test, y_train, y_test, models_predict, mean_y_train=0, ax=None):
+    if ax is None:
+        ax = plt.gca()
+
+    rango_x = np.linspace(np.min((np.min(x_test), np.min(x_train))),
+                          np.max((np.max(x_test), np.max(x_train))), 200)
+    i = 0
+    for model_name, model in models_predict:
+        if model_name == "GPR":
+            min_max_scaler_ = model.steps[0][1]
+            gpr_model_ = model.steps[1][1]
+            yp, y_std = gpr_model_.predict(min_max_scaler_.transform(rango_x[:, np.newaxis]),
+                                           return_std=True)
+            yp += mean_y_train
+            ax.fill_between(rango_x, yp - 1.96 * y_std, yp + 1.96 * y_std,
+                            alpha=0.2, color="C%d" % i)
+        else:
+            yp = model.predict(rango_x[:, np.newaxis])
+            yp += mean_y_train
+        ax.plot(rango_x, yp, label=model_name)
+        i += 1
+
+    ax.scatter(x_test, y_test, s=8, label="test", alpha=.5,c="C%d"%i)
+    ax.scatter(x_train, y_train, s=8, label="train", alpha=.5,c="C%d"%(i+1))
+
+
+def permutation_test(model,X,y, function_error=mean_absolute_error,P=30):
+    salida = pd.DataFrame(columns=X.columns, data=np.ndarray((P, X.shape[1])))
+    # print("Error inicial: %.3f"%(function_error(model.predict(X),y)))
+    for col in X.columns:
+        error = np.ndarray((P,))
+        X_copia = X.copy()
+        for i in range(P):
+            x_datos = np.array(X_copia[col])
+            x_datos = x_datos[np.random.permutation(X.shape[0])]
+            X_copia[col] = x_datos
+            y_pred = model.predict(X_copia)
+            error[i] = function_error(y, y_pred)
+        salida[col] = error
+    return pd.melt(salida,value_name=function_error.__name__)
+
+
+
+
+
+
+
+
+
+"""
 
 '''The first plot is very much fitted to RS datasets'''
 ## Boxplots by band for whole spectrum: this is just an statistical summary of the input bands
@@ -53,60 +142,6 @@ def boxplots_bands(df):
             fig.savefig('Spectral_bands_statistics_Sentinel2.pdf')
         elif data is dataplots[1]:
             fig.savefig('Spectral_bands_statistics_Sentinel3.pdf')
-
-
-## Correlative plot
-# Correlative plot prediction vs. measured: as validation plot using linear regression;
-# (also useful for residual vs. measured)
-# Inputs: two arrays with predictions (preds) and measured (y_test) data
-# Results from models are stored in:
-#     predictions = pd.DataFrame(predictions).T
-#     predictions.to_csv(name_bands + "_preds.csv", index=False)
-
-
-def correlative_plot(preds, measured):
-
-    parameter = "String" #or extract from file name
-
-    slope, intercept, r_value, p_value, std_err = sp.stats.linregress(measured, preds)
-
-    a = str("{0:.5f}".format(slope))
-    b = str("{0:.5f}".format(intercept))
-    c = str("{0:.5f}".format(r_value))
-    d = str("{0:.1E}".format(std_err))
-
-    stats = pd.DataFrame(
-        {'Slope': [a], 'Intercept': [b], 'r': c, 'error': [d]})
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    plt.scatter(np.log10(measured), np.log10(preds))
-    plt.ylabel(parameter + "predicted", fontsize=16)
-    plt.xlabel(parameter + "measured", fontsize=16)
-    ax.xaxis.grid(color='lightgrey', linestyle='dashed')
-    ax.yaxis.grid(color='lightgrey', linestyle='dashed')
-    ax.patch.set_facecolor('white')
-    ax.set_title("Validation" + parameter, fontsize=25) #example
-    # ax.set_xlim(-5, 30)
-    # ax.set_ylim(-5, 30)
-    plt.xticks(fontsize=15, rotation=0)
-    plt.yticks(fontsize=15, rotation=0)
-    ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c="lightgrey")
-
-    ## Annotate plot with regression formula -->
-    fig.text(0.2, 0.8, r'$y=$' + a + r'$x$' + b, ha='left', fontsize=15)
-    fig.text(0.2, 0.76, r'$r=$' + c, ha='left', fontsize=15)
-    fig.text(0.2, 0.72, r'$error=$' + d, ha='left', fontsize=15)
-
-    return fig
-
-
-## Partial plots using X_test and y_test as inputs for scatter plot + XPLOTS, PPLOTS for line plot
-## Inputs: XPLOTS, PPLOTS = partial_plots(model, X_test_df)
-## I do not know how to do this, maybe with .pkl file?? I need to read the dataset too, maybe??
-import pickle
-with open('*.pkl', 'rb') as f:
-    train_set, valid_set, test_set = pickle.load(f)
 
 def partial_plots(model ,X):
     P = 20
@@ -174,37 +209,8 @@ def partial_plots(model ,X):
 ## Inputs: model, X_test_scaled_df, y_test, mean_y
 ## I do not know how to do this, maybe with .pkl file??
 
-def permutation_test(model,X,y , function_error=mean_absolute_error):
-    P = 30
-    salida = pd.DataFrame(columns=X.columns, data=np.ndarray((P, X.shape[1])))
-    # print("Error inicial: %.3f"%(function_error(model.predict(X),y)))
-    for col in X.columns:
-        error = np.ndarray((P,))
-        X_copia = X.copy()
-        for i in range(P):
-            x_datos = np.array(X_copia[col])
-            x_datos = x_datos[np.random.permutation(X.shape[0])]
-            X_copia[col] = x_datos
-            y_pred = model.predict(X_copia)
-            error[i] = function_error(y, y_pred)
-        salida[col] = error
-    return salida
-
 
     ##Plotting
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    print("      Computing permutation test")
-    sal = permutation_test(model, X_test_scaled_df, y_test - mean_y)
-    sns.barplot(x="variable", y="value", data=pd.melt(sal))
-    ax.xaxis.grid(color='lightgrey', linestyle='dashed')
-    ax.yaxis.grid(color='lightgrey', linestyle='dashed')
-    ax.patch.set_facecolor('white')
-    plt.xticks(rotation='vertical', fontsize=15)
-    plt.yticks(fontsize=15)
-    plt.subplots_adjust(bottom=0.25)
-    plt.title(name_bands + "_" + name, fontsize=25)
-    plt.savefig("permutation_" + name_bands + "_" + name + ".pdf")
 
 ## Linear regression plots of one variable (ratio) per model
 ## Inputs:
@@ -272,3 +278,5 @@ def boxplot_models():
     # plt.xticks(fontsize=15)
     # plt.yticks(fontsize=15)
     # fig.savefig("ERRORS_" + name_bands + ".pdf")
+
+"""

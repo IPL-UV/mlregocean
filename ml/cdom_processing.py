@@ -1,135 +1,71 @@
-
-import pandas as pd
+__author__ = 'Gonzalo Mateo-García, Ana Ruescas'
 import numpy as np
-from sklearn.kernel_ridge import KernelRidge
-from sklearn.model_selection import train_test_split, GridSearchCV ,KFold
-from sklearn.linear_model import Ridge ,LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.metrics import mean_squared_error ,mean_absolute_error ,r2_score
-from sklearn.gaussian_process.kernels import RBF, WhiteKernel, ConstantKernel
-from sklearn.preprocessing import PolynomialFeatures ,MinMaxScaler
-from sklearn.pipeline import make_pipeline
-from sklearn.svm import SVR
-from glob import glob
 import os
 import spectral.io.envi as envi
 import xml.etree.ElementTree as emt
-from scipy import sparse
 
-# bands_S3_syke = ['S3400','S3412.5','S3442.5','S3490','S3510','S3560',
-#                   'S3620','S3665','S3673.75','S3681.25','S3708.75', 'S3753.75']
-# bands_S3ratio = ['S3ratio1','S3ratio2']
-# bands_S3_plus_ratios = bands_S3_syke + bands_S3ratio
-#
-# path = '/media/ana/Nuevo vol/IPL/Databases/'
-#
-# relation_band_names = {
-#     "01": "S3400",
-#     "02": 'S3412.5',
-#      "03": 'S3442.5',
-#      "04": 'S3490',
-#      "05": 'S3510',
-#      "06":'S3560',
-#      "07":'S3620',
-#      "08":'S3665',
-#      "09":'S3673.75',
-#      "10":'S3681.25',
-#      "11":'S3708.75',
-#      "12":'S3753.75',
-#      "S3ratio1" : 'S3ratio1',
-#      "S3ratio2" : 'S3ratio2'
-#      }
-#
-# def read_data_syke(file=path + 'SYKE/SYKE_5553_Run2_out_S2_S3_header.txt'):
-#     skdata = pd .read_csv(file,
-#                       sep='\t', na_values=' ')
-#     skdata['S2ratio1'] = skdata['S2665']/skdata['S2490']
-#     skdata['S2ratio2'] = skdata['S2705']/skdata['S2490']
-#     skdata['S3ratio1'] = skdata['S3665']/skdata['S3490']
-#     skdata['S3ratio2'] = skdata['S3708.75']/skdata['S3490']
-#
-#     ###2.1 Other possibile inputs
-#     bands_S2 = ['S2443','S2490','S2560','S2665','S2705','S2740']
-#     bands_S2ratio = ['S2ratio1','S2ratio2']
-#     bands_S3ratio = ['S3ratio1','S3ratio2']
-#     bands_S2_plus_ratios = bands_S2 + bands_S2ratio
-#     bands_S3_plus_ratios = bands_S3_syke + bands_S3ratio
-#
-#     #print(skdata.columns)
-#     return skdata
+RELATION_BAND_NAMES_C2X = {'400': '01',
+ '412.5': '02',
+ '442.5': '03',
+ '490': '04',
+ '510': '05',
+ '560': '06',
+ '620': '07',
+ '665': '08',
+ '673.75': '09',
+ '681.25': '10',
+ '708.75': '11',
+ '753.75': '12',
+ '778.75': '16',
+ '865': '17',
+ '885': '18',
+ 'S3ratio1': 'S3ratio1',
+ 'S3ratio2': 'S3ratio2'}
 
-### C2X dataset
-bands_S3 = ['400', '412.5', '442.5', '490', '510', '560',
-            '620', '665','673.75','681.25', '708.75','753.75', '778.75','865',
-            '885']
-bands_S3ratio = ['S3ratio1','S3ratio2']
-bands_S3_plus_ratios = bands_S3 + bands_S3ratio
-
-path = '/media/ana/Nuevo vol/IPL/Databases/'
-
-relation_band_names = {
-     "01": "400",
-     "02": '412.5',
-     "03": '442.5',
-     "04": '490',
-     "05": '510',
-     "06":'560',
-     "07":'620',
-     "08":'665',
-     "09":'673.75',
-     "10":'681.25',
-     "11":'708.75',
-     "12":'753.75',
-     "16":"778.75",
-     "17": "865",
-     "18": "885",
-     "S3ratio1" : 'S3ratio1',
-     "S3ratio2" : 'S3ratio2'
-     }
-
-def read_data_syke(file=path + 'C2X/HL_C2A_total_test.txt'):
-    skdata = pd .read_csv(file,
-                      sep='\t', na_values=' ')
-    skdata = skdata[skdata['Chl_comp_1'] == 1]
-    skdata['S3ratio1'] = skdata['665']/skdata['490']
-    skdata['S3ratio2'] = skdata['708.75']/skdata['490']
-
-    ###2.1 Other possibile inputs
-    # bands_S3ratio = ['S3ratio1', 'S3ratio2']
-    bands_S3_plus_ratios = bands_S3 + bands_S3ratio
-
-    #print(skdata.columns)
-    return skdata
+RELATION_BAND_NAMES_SYKE = {'S3400': '01',
+ 'S3412.5': '02',
+ 'S3442.5': '03',
+ 'S3490': '04',
+ 'S3510': '05',
+ 'S3560': '06',
+ 'S3620': '07',
+ 'S3665': '08',
+ 'S3673.75': '09',
+ 'S3681.25': '10',
+ 'S3708.75': '11',
+ 'S3753.75': '12',
+ 'S3778.75': '16',
+ 'S3865': '17',
+ 'S3885': '18',
+ 'S3ratio1': 'S3ratio1',
+ 'S3ratio2': 'S3ratio2'}
 
 
-def load_model(skdata,model,bands):
-    X = skdata[bands]
-    # cdom_array = np.asarray(skdata['a400 (1/m)'])
-    cdom_array = np.asarray(skdata['a_440_cdom'])
+BAND_NAMES_S3 = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12', '16', '17', '18', '21']
+BAND_NAMES_S3_RATIOS = BAND_NAMES_S3 + ['S3ratio1','S3ratio2']
 
-    min_max_scaler = MinMaxScaler()
-    X_scaled = min_max_scaler.fit_transform(X)
+def image_to_predict_S3(img,bands_dataset,relation=RELATION_BAND_NAMES_C2X):
+    """
+    img: 3D np.array
+    band_names:  list with the names of the bands of img
+    bands_name: "S3bands","S3bands&ratios", "ratios_S3", "S3ratio1"...
+    """
+    bands_predict = [relation[b] for b in bands_dataset]
+    index_bands_predict = [BAND_NAMES_S3.index(b) for b in bands_predict]
+    return img[:,:,index_bands_predict]
 
-    ###4. Split training-testing data
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, cdom_array, test_size=0.25, random_state=42)
 
-    mean_y = np.mean(y_train)
-    y_train_norm = y_train - mean_y
+def load_S3_image(image_path):
+    """
+    load S3 image downloaded with SNAP, applies conversion to TOA and compute ratios
 
-    model.fit(X_train,y_train_norm)
-
-    return min_max_scaler,mean_y
-
-def load_S3_image(image_path= path + "subset_0_of_S3A_OL_2_WFR____20170708T084007_20170708T084307_20170708T104714_0179_019_335_1979_MAR_O_NR_002.data/"):
-    inputs = [ip for ip in sorted(glob(os.path.join(image_path,"Oa*.hdr"))) if "err" not in ip]
+    :param image_path: path to .data/ dir
+    :return: 3D np.array with the image bands sorted in BAND_NAMES_S3_RATIOS order
+    """
+    inputs = [os.path.join(image_path,"Oa%s_reflectance.hdr"%b) for b in BAND_NAMES_S3]
 
     images = []
-    band_names = []
     for ip in inputs:
-        band_name = os.path.splitext(os.path.basename(ip))[0]
-        band_name = band_name.replace("_reflectance","").replace("Oa","")
-        band_names.append(band_name)
         metadata = envi.read_envi_header(ip)
         gain = np.array([float(m) for m in metadata['data gain values']])
         offset = np.array([float(m) for m in metadata['data offset values']])
@@ -142,23 +78,25 @@ def load_S3_image(image_path= path + "subset_0_of_S3A_OL_2_WFR____20170708T08400
     S3ratio1 = (images[7]) / (images[3])
     S3ratio2 = (images[10]) / (images[3])
     images.append(S3ratio1)
-    band_names.append("S3ratio1")
     images.append(S3ratio2)
-    band_names.append("S3ratio2")
     images = np.concatenate(images,axis=2)
 
+    return images
 
+def load_mask(image_path):
+    """
+    laod the water mask from S3 image
 
-
-    return images, band_names
-
-
-
-def load_mask(image_path= path + "subset_0_of_S3A_OL_2_WFR____20170708T084007_20170708T084307_20170708T104714_0179_019_335_1979_MAR_O_NR_002.data/"):
+    :param image_path: path to .data/ dir
+    :return:
+    """
     mask_file = os.path.join(image_path,"WQSF_lsb.hdr")
     mask = envi.open(mask_file)[:,:,0]
     mask = mask[:,:,0]
-    e = emt.parse(path + "subset_0_of_S3A_OL_2_WFR____20170708T084007_20170708T084307_20170708T104714_0179_019_335_1979_MAR_O_NR_002.dim").getroot()
+    dim_file,_ = os.path.splitext(image_path)
+    dim_file+=".dim"
+
+    e = emt.parse(dim_file).getroot()
 
     gp = e.find("./Flag_Coding[@name='WQSF_lsb']")
     flag_to_index = dict([(f.find("Flag_Name").text,int(f.find("Flag_Index").text)) for f in gp.getchildren()])
@@ -181,30 +119,43 @@ def load_mask(image_path= path + "subset_0_of_S3A_OL_2_WFR____20170708T084007_20
     return mascara
 
 
-def predict_image(img, band_names, mascara,model, scaler, bands_model, y_range=None, y_mean=0, step=50000,predict_function=None):
+def predict_image(img,
+                  mask,
+                  model=None,
+                  y_range=None,
+                  y_mean=0, step=50000,
+                  predict_function=None):
+    """
+    Given a 3d np.array img it applies the model to each pixel of the image.
+
+    :param img:3d np.array
+    :param mask: 2d np.array
+    :param model: model to apply
+    :param y_range: (min,max) tuple to trim the values of the output of the model
+    :param y_mean:
+    :param step: number of pixels to predict on batch
+    :param predict_function: predict function instead of model.predict
+    :return: 2d np.array with the predicted data
+    """
 
     if predict_function is None:
         predict_function = lambda data: model.predict(data)
 
     img_flat = np.reshape(img,(img.shape[0]*img.shape[1],img.shape[2]))
-    mask_flat = np.reshape(mascara,(mascara.shape[0]*mascara.shape[1]))
+    mask_flat = np.reshape(mask,(mask.shape[0]*mask.shape[1]))
 
-    img_flat = pd.DataFrame(img_flat,columns=band_names)
-    img_flat = img_flat.rename(columns=relation_band_names)
-
-    img_to_predict = img_flat[bands_model].as_matrix()
-    # img_to_predict = img_flat[bands_S3_plus_ratios]
-
-    img_flat = img_to_predict[~mask_flat]
+    img_flat = img_flat[~mask_flat]
 
     if step is None:
-        preds = predict_function(scaler.transform(img_flat))
-    else:
-        indices = range(0, img_flat.shape[0], step)
-        preds = np.concatenate([predict_function(scaler.transform(img_flat[i:(i + step)])) for i in indices],
+        step = img_flat.shape[0]
+
+    indices = range(0, img_flat.shape[0], step)
+
+    preds = np.concatenate([predict_function(img_flat[i:(i + step)]) for i in indices],
                            axis=0)
 
     preds += y_mean
+
     if y_range is not None:
         preds = np.clip(preds, y_range[0], y_range[1])
 
@@ -218,6 +169,7 @@ def predict_image(img, band_names, mascara,model, scaler, bands_model, y_range=N
 
     return predictions
 
+
 HDR_HEADER = {'band names': ['modeled_parameter'],
  'bands': '1',
  'byte order': '1',
@@ -230,6 +182,13 @@ HDR_HEADER = {'band names': ['modeled_parameter'],
  'sensor type': 'Unknown'}
 
 def write_envi(img,hdr_file):
+    """
+    save image as envi
+
+    :param img:
+    :param hdr_file:
+    :return:
+    """
     header = dict(HDR_HEADER)
     header["lines"] = str(img.shape[0])
     header["samples"] = str(img.shape[0]*img.shape[1])
