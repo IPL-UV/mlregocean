@@ -138,8 +138,8 @@ def load_S3_image_C2RCC(image_path):
         images.append(img)
 
 
-    S3ratio1 = (images[7]) / (images[3])
-    S3ratio2 = (images[10]) / (images[3])
+    S3ratio1 = (images[7]) / (images[3]+1e-5)
+    S3ratio2 = (images[10]) / (images[3]+1e-5)
     images.append(S3ratio1)
     images.append(S3ratio2)
     images = np.concatenate(images,axis=2)
