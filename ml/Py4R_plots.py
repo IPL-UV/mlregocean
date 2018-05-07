@@ -43,18 +43,20 @@ def correlative_plot(preds, measured,ax=None,s=10):
         ax = plt.gca()
 
     ax.scatter(measured, preds,s=s)
-    ax.set_ylabel( "predicted")
-    ax.set_xlabel( "measured")
+    ax.set_ylabel("CDOM predicted", fontsize=15)
+    ax.set_xlabel("CDOM measured", fontsize=15)
     ax.xaxis.grid(color='lightgrey', linestyle='dashed')
     ax.yaxis.grid(color='lightgrey', linestyle='dashed')
     ax.patch.set_facecolor('white')
+    ax.set(ylim=(0, 60), xlim=(0, 60))
     #ax.set_title("Validation", fontsize=25) #example
     ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c="lightgrey")
 
+
     ## Annotate plot with regression formula -->
-    ax.text(0.2, np.max(preds)-1, r'$y=$' + a + r'$x$' + b, ha='left', fontsize=15)
-    ax.text(0.2, np.max(preds)-5, r'$r=$' + c, ha='left', fontsize=15)
-    ax.text(0.2, np.max(preds)-9, r'$error=$' + d, ha='left', fontsize=15)
+    ax.text(0.2, np.max(preds)-4, r'$y=$' + a + r'$x$' + b, ha='left', fontsize=15)
+    ax.text(0.2, np.max(preds)-8, r'$r=$' + c, ha='left', fontsize=15)
+    ax.text(0.2, np.max(preds)-12, r'$error=$' + d, ha='left', fontsize=15)
 
 
 def regression_plot(x_train, x_test, y_train, y_test, models_predict, mean_y_train=0, ax=None):
@@ -79,8 +81,11 @@ def regression_plot(x_train, x_test, y_train, y_test, models_predict, mean_y_tra
         ax.plot(rango_x, yp, label=model_name)
         i += 1
 
-    ax.scatter(x_test, y_test, s=8, label="test", alpha=.5,c="C%d"%i)
-    ax.scatter(x_train, y_train, s=8, label="train", alpha=.5,c="C%d"%(i+1))
+    ax.scatter(x_test, y_test, s=15, label="test", alpha=.5,c="C%d"%i)
+    ax.scatter(x_train, y_train, s=15, label="train", alpha=.5,c="C%d"%(i+1))
+    ax.patch.set_facecolor('white')
+    ax.set_ylabel("CDOM predicted", fontsize=15)
+    ax.set_xlabel("Ratio", fontsize=15)
 
 
 def permutation_test(model,X,y, function_error=mean_absolute_error,P=30):
